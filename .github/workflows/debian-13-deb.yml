@@ -7,7 +7,7 @@ on:
     inputs:
       goarches:
         description: "Comma-separated GOARCH list to build"
-        default: "amd64,arm64"
+        default: "amd64"
         type: string
 
 permissions:
@@ -70,7 +70,7 @@ jobs:
         env:
           YEET_METHODS: debian
           YEET_PLATFORMS: linux
-          YEET_GOARCHES: ${{ inputs.goarches || 'amd64,arm64' }}
+          YEET_GOARCHES: ${{ inputs.goarches || 'amd64' }}
           FORCE_GIT_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
           MAINTAINER_NAME: ${{ github.repository_owner }}
           MAINTAINER_EMAIL: ${{ github.repository_owner }}@users.noreply.github.com
