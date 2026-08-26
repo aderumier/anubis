@@ -63,7 +63,7 @@ jobs:
 
       # YEET_* narrow yeetfile.js to just the Debian half of the matrix, so this
       # job does not also build the rpm, sysext, tarball, MSI and vendored
-      # source outputs that package-builds-*.yml already cover.
+      # source outputs that this fork has no use for.
       # FORCE_GIT_VERSION pins the package version to the release tag rather
       # than letting `git describe` infer it.
       - name: Build Debian packages
