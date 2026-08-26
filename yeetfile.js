@@ -18,7 +18,7 @@ const allowList = (name) => {
 
 const wantedMethods = allowList("YEET_METHODS");
 const wantedPlatforms = allowList("YEET_PLATFORMS");
-const wantedGoarches = allowList("YEET_GOARCHES");
+const wantedGoarch = allowList("YEET_GOARCH");
 
 const wanted = (list, value) => list === null || list.includes(value);
 
@@ -37,7 +37,7 @@ const methods = [
 const packages = methods
   .filter(
     ([goos, goarch]) =>
-      wanted(wantedPlatforms, goos) && wanted(wantedGoarches, goarch),
+      wanted(wantedPlatforms, goos) && wanted(wantedGoarch, goarch),
   )
   .map(([goos, goarch, methods]) => {
     return methods

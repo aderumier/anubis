@@ -139,6 +139,7 @@ ellenjoe
 emacs
 embe
 enbyware
+endgroup
 envoyproxy
 eral
 ETCDIR
@@ -350,6 +351,7 @@ nobots
 NOFILE
 nolint
 NONINFRINGEMENT
+noninteractive
 nosleep
 nullglob
 oci

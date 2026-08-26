@@ -5,7 +5,7 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      goarches:
+      goarch:
         description: "Comma-separated GOARCH list to build"
         default: "amd64"
         type: string
@@ -70,7 +70,7 @@ jobs:
         env:
           YEET_METHODS: debian
           YEET_PLATFORMS: linux
-          YEET_GOARCHES: ${{ inputs.goarches || 'amd64' }}
+          YEET_GOARCH: ${{ inputs.goarch || 'amd64' }}
           FORCE_GIT_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
           MAINTAINER_NAME: ${{ github.repository_owner }}
           MAINTAINER_EMAIL: ${{ github.repository_owner }}@users.noreply.github.com
