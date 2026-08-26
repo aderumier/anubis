@@ -1,0 +1,142 @@
+name: Debian 13 package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      goarches:
+        description: "Comma-separated GOARCH list to build"
+        default: "amd64,arm64"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build .deb on Debian 13
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:13
+    permissions:
+      contents: read
+    steps:
+      # git has to be installed before actions/checkout runs, otherwise
+      # checkout falls back to downloading a REST tarball and yeet has no
+      # repository to read the package version out of. brotli, gzip and zstd
+      # are used by web/build.sh to precompress the JS bundles; build-essential
+      # is here for the same reason the other package workflows install it.
+      - name: Install build prerequisites
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            brotli \
+            build-essential \
+            ca-certificates \
+            curl \
+            git \
+            gzip \
+            xz-utils \
+            zstd
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-tags: true
+          fetch-depth: 0
+
+      # The container runs as root while the workspace is owned by the runner
+      # user, which trips git's dubious-ownership check.
+      - name: Mark the workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24.11.0"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: install node deps
+        run: npm ci
+
+      # YEET_* narrow yeetfile.js to just the Debian half of the matrix, so this
+      # job does not also build the rpm, sysext, tarball, MSI and vendored
+      # source outputs that package-builds-*.yml already cover.
+      # FORCE_GIT_VERSION pins the package version to the release tag rather
+      # than letting `git describe` infer it.
+      - name: Build Debian packages
+        env:
+          YEET_METHODS: debian
+          YEET_PLATFORMS: linux
+          YEET_GOARCHES: ${{ inputs.goarches || 'amd64,arm64' }}
+          FORCE_GIT_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          MAINTAINER_NAME: ${{ github.repository_owner }}
+          MAINTAINER_EMAIL: ${{ github.repository_owner }}@users.noreply.github.com
+        run: |
+          go tool yeet \
+            -git-user-name "${MAINTAINER_NAME}" \
+            -git-user-email "${MAINTAINER_EMAIL}"
+
+      - name: Inspect the built packages
+        run: |
+          shopt -s nullglob
+          debs=(var/*.deb)
+          if [[ ${#debs[@]} -eq 0 ]]; then
+            echo "::error::yeet produced no .deb files"
+            exit 1
+          fi
+          for deb in "${debs[@]}"; do
+            echo "::group::${deb}"
+            dpkg-deb --info "${deb}"
+            dpkg-deb --contents "${deb}"
+            echo "::endgroup::"
+          done
+        shell: bash
+
+      # Debian 13 is the build platform, so the native package can actually be
+      # installed here. This turns "the file exists" into "the file is an
+      # installable package containing a binary that runs".
+      - name: Smoke-test the amd64 package
+        run: |
+          shopt -s nullglob
+          debs=(var/*_amd64.deb)
+          if [[ ${#debs[@]} -eq 0 ]]; then
+            echo "no amd64 package built, skipping smoke test"
+            exit 0
+          fi
+          dpkg --install "${debs[0]}"
+          # --version exits 0; the bare --help that Go's flag package handles
+          # exits 2, which would fail this step for no good reason.
+          anubis --version
+          test -x /usr/bin/anubis-robots2policy
+          test -f /usr/lib/systemd/system/anubis@.service
+          test -f /etc/anubis/default.env
+        shell: bash
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: debian-13-packages
+          path: var/*.deb
+          if-no-files-found: error
+
+  publish:
+    name: Attach .deb to the release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: debian-13-packages
+          path: dist
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "${RELEASE_TAG}" dist/*.deb --clobber
