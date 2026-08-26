@@ -21,6 +21,18 @@ templ base(title string, body templ.Component, impressum *config.Impressum, hone
 				<meta property={ key } content={ value }/>
 			}
 			<style>
+        /* The mascot artwork is rendered on a white plate, so pin the page to a
+           light palette regardless of the visitor's preferred color scheme. */
+        :root {
+            --background: #fff;
+            --text: #1d2021;
+            --text-selection: #d3869b;
+            --preformatted-background: #ebdbb2;
+            --link-foreground: #b16286;
+            --link-background: #fff;
+            --blockquote-border-left: 1px solid #655c54;
+        }
+
         body,
         html {
             height: 100%;
