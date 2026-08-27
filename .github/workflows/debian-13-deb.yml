@@ -1,6 +1,15 @@
 name: Debian 13 package
 
 on:
+  # Pushing a v* tag builds the package and publishes a release with it
+  # attached. The publish uses the workflow's own GITHUB_TOKEN, so it needs no
+  # personal access token.
+  push:
+    branches: [main]
+    tags: ["v*"]
+  # Kept so a release published by hand from an existing tag still gets a
+  # package. A release created by this workflow does not re-trigger it:
+  # GitHub does not raise workflow events for actions taken with GITHUB_TOKEN.
   release:
     types: [published]
   workflow_dispatch:
@@ -71,7 +80,7 @@ jobs:
           YEET_METHODS: debian
           YEET_PLATFORMS: linux
           YEET_GOARCH: ${{ inputs.goarch || 'amd64' }}
-          FORCE_GIT_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          FORCE_GIT_VERSION: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
           MAINTAINER_NAME: ${{ github.repository_owner }}
           MAINTAINER_EMAIL: ${{ github.repository_owner }}@users.noreply.github.com
         run: |
@@ -122,8 +131,10 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Attach .deb to the release
-    if: github.event_name == 'release'
+    name: Publish the release
+    # Only tag builds and hand-published releases get a release; a plain push to
+    # main or a manual dispatch just leaves the .deb as a workflow artifact.
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -134,9 +145,16 @@ jobs:
           name: debian-13-packages
           path: dist
 
-      - name: Upload to the release
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "${RELEASE_TAG}" dist/*.deb --clobber
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" dist/*.deb --clobber
+          else
+            gh release create "${RELEASE_TAG}" dist/*.deb \
+              --title "${RELEASE_TAG}" \
+              --generate-notes
+          fi
